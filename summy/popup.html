@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Summy</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            height: 400px;
+            width: 350px; /* Adjusted width to accommodate all elements */
+            position: relative;
+        }
+        #sidebar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 300px;
+            background-color: #f4f4f4;
+            padding: 10px;
+            border-right: 1px solid #ccc;
+            transition: transform 0.3s ease-in-out;
+            transform: translateX(-100%);
+            height: 100%;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            z-index: 15; /* Ensure sidebar is above other content */
+        }
+        #sidebar.collapsed {
+            transform: translateX(-100%);
+        }
+        #sidebar.expanded {
+            transform: translateX(0);
+        }
+        #sidebar-toggle {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 20; /* Ensure toggle button is above sidebar */
+            background-color: #007bff;
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        #chat-container {
+            flex-grow: 1;
+            padding: 10px;
+            background-color: #fff;
+            overflow-y: auto;
+            width: 100%;
+            height: calc(100% - 60px); /* Adjusted to account for input container */
+            z-index: 10; /* Ensure chat container is below sidebar */
+            position: relative;
+        }
+        .message {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            position: relative;
+        }
+        .message .delete-button {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background-color: transparent;
+            border: none;
+            color: #dc3545;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .message .delete-button:hover {
+            text-decoration: underline;
+        }
+        .user-message {
+            text-align: right;
+            background-color: #e9ecef;
+        }
+        .ai-message {
+            text-align: left;
+        }
+        .summary-message {
+            text-align: left;
+            font-style: italic;
+        }
+        .message:nth-child(even) {
+            background-color: #f8f9fa; /* Light gray background for even messages */
+        }
+        #input-container {
+            display: flex;
+            padding: 10px;
+            box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+            width: 95%;
+            background-color: #fff;
+            z-index: 10; /* Ensure input container is below sidebar */
+            position: relative;
+        }
+        #user-input {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            margin-right: 5px; /* Reduced margin to fit buttons better */
+            resize: vertical;
+            min-height: 40px;
+        }
+        #send-button, #summarize-button {
+            padding: 5px 10px; /* Reduced padding to make buttons smaller */
+            border: none;
+            border-radius: 5px;
+            background-color: #007bff;
+            color: #fff;
+            cursor: pointer;
+            font-size: 12px; /* Reduced font size to make buttons smaller */
+            margin-left: 5px; /* Added margin to separate buttons */
+        }
+        #send-button:hover, #summarize-button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+    <script src="marked.min.js"></script>
+</head>
+<body>
+    <button id="sidebar-toggle">=</button>
+    <div id="sidebar" class="collapsed">
+        <h2>設定</h2>
+        <label for="api-url">API網址:</label>
+        <input type="text" id="api-url" placeholder="https://api.openai.com"><br><br>
+        <label for="api-key">API金鑰:</label>
+        <input type="text" id="api-key" placeholder="你的API金鑰"><br><br>
+        <label for="model-select">選擇模型:</label>
+        <select id="model-select" disabled>
+            <option value="">載入中...</option>
+        </select>
+    </div>
+    <div id="chat-container">
+        <div id="chat-history"></div>
+    </div>
+    <div id="input-container">
+        <textarea id="user-input" placeholder="輸入提示..."></textarea>
+        <button id="send-button">送出</button>
+        <button id="summarize-button">摘要</button>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+</html>

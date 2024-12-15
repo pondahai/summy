@@ -1,0 +1,645 @@
+Summy
+
+功能描述
+
+Summy是一個Chrome擴充功能，透過使用OpenAI的/v1/chat/completions端點來進行聊天和內容生成。除此之外，這個外掛還有另一個主要功能：可以針對目前活動頁面進行摘要，使用者需要按一下摘要鈕才會進行摘要。
+
+主要功能
+
+聊天功能: Summy提供聊天功能，允許使用者與AI直接對話。
+內容生成: Summy可以自動生成內容，基於使用者輸入的提示。
+頁面摘要: Summy可以針對目前活動頁面進行摘要，但是需要使用者按一下摘要鈕才會進行摘要。
+設定頁面: Summy提供設定頁面，允許使用者設定API網址和金鑰。
+工作流程
+
+使用者安裝Summy擴充功能。
+使用者輸入提示，Summy會將其送往OpenAI的/v1/chat/completions端點。
+OpenAI的API會根據提示生成回應，並將其返回給Summy。
+Summy會顯示回應給使用者。
+使用者可以繼續輸入提示，Summy會再次將其送往OpenAI的/v1/chat/completions端點。
+當使用者按一下摘要鈕時，Summy會對目前網頁進行取樣。
+取樣的網頁內容會被送往OpenAI的API進行摘要。
+OpenAI的API會根據網頁內容生成摘要內容，並將其返回給Summy。
+Summy程式會將摘要內容插入到聊天紀錄中，以作為對話的一部分。
+設定頁面
+
+設定頁面允許使用者設定以下資訊：
+
+API網址：OpenAI的API網址
+API金鑰：OpenAI的API金鑰
+聊天紀錄
+
+聊天紀錄會顯示在側欄中，包含了以下內容：
+
+使用者輸入的提示
+AI的回應
+摘要內容（來自使用者按下摘要鈕後，Summy對網頁進行取樣並由AI進行摘要後的結果）
+
+html
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Summy</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+        }
+        #sidebar {
+            width: 300px;
+            background-color: #f4f4f4;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        #chat-container {
+            flex-grow: 1;
+            padding: 20px;
+            background-color: #fff;
+            overflow-y: auto;
+        }
+        .message {
+            margin-bottom: 10px;
+        }
+        .user-message {
+            text-align: right;
+        }
+        .ai-message {
+            text-align: left;
+        }
+        .summary-message {
+            text-align: left;
+            font-style: italic;
+        }
+        #input-container {
+            position: fixed;
+            bottom: 0;
+            left: 300px;
+            right: 0;
+            background-color: #fff;
+            padding: 10px;
+            box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+            display: flex;
+        }
+        #user-input {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            margin-right: 10px;
+        }
+        #send-button, #summarize-button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background-color: #007bff;
+            color: #fff;
+            cursor: pointer;
+        }
+        #send-button:hover, #summarize-button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <h2>設定</h2>
+        <label for="api-url">API網址:</label>
+        <input type="text" id="api-url" placeholder="https://api.openai.com/v1/chat/completions"><br><br>
+        <label for="api-key">API金鑰:</label>
+        <input type="text" id="api-key" placeholder="你的API金鑰">
+    </div>
+    <div id="chat-container">
+        <div id="chat-history"></div>
+    </div>
+    <div id="input-container">
+        <input type="text" id="user-input" placeholder="輸入提示...">
+        <button id="send-button">送出</button>
+        <button id="summarize-button">摘要</button>
+    </div>
+
+    <script>
+        document.getElementById('send-button').addEventListener('click', sendMessage);
+        document.getElementById('summarize-button').addEventListener('click', summarizePage);
+
+        function sendMessage() {
+            const userInput = document.getElementById('user-input').value;
+            if (userInput.trim() === '') return;
+
+            appendMessage(userInput, 'user');
+            document.getElementById('user-input').value = '';
+
+            fetchResponse(userInput).then(response => {
+                appendMessage(response, 'ai');
+            });
+        }
+
+        function summarizePage() {
+            const pageContent = document.body.innerText;
+            if (pageContent.trim() === '') return;
+
+            fetchSummary(pageContent).then(summary => {
+                appendMessage(summary, 'summary');
+            });
+        }
+
+        function appendMessage(message, type) {
+            const chatHistory = document.getElementById('chat-history');
+            const messageElement = document.createElement('div');
+            messageElement.className = `message ${type}-message`;
+            messageElement.textContent = message;
+            chatHistory.appendChild(messageElement);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        async function fetchResponse(prompt) {
+            const apiUrl = document.getElementById('api-url').value;
+            const apiKey = document.getElementById('api-key').value;
+
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    messages: [{ role: "user", content: prompt }]
+                })
+            });
+
+            const data = await response.json();
+            return data.choices[0].message.content;
+        }
+
+        async function fetchSummary(content) {
+            const apiUrl = document.getElementById('api-url').value;
+            const apiKey = document.getElementById('api-key').value;
+
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    messages: [{ role: "user", content: `請對以下內容進行摘要：${content}` }]
+                })
+            });
+
+            const data = await response.json();
+            return data.choices[0].message.content;
+        }
+    </script>
+</body>
+</html>
+
+修改:
+1.API網址改為自動為輸入的網址加上/v1/chat/completions
+2.網址與金鑰的下方加上一個下拉選單 內容來自 API 網址加上 /models 的回覆內容 將回覆內容的模型名稱製成列表供選擇
+3.在網址與金鑰文字框捕捉貼上以及打字動作 當發生時 檢查網址與金鑰是否都有填入文字 若有則自動執行模型列表索取以及建立
+
+
+html
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Summy</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+        }
+        #sidebar {
+            width: 300px;
+            background-color: #f4f4f4;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        #chat-container {
+            flex-grow: 1;
+            padding: 20px;
+            background-color: #fff;
+            overflow-y: auto;
+        }
+        .message {
+            margin-bottom: 10px;
+        }
+        .user-message {
+            text-align: right;
+        }
+        .ai-message {
+            text-align: left;
+        }
+        .summary-message {
+            text-align: left;
+            font-style: italic;
+        }
+        #input-container {
+            position: fixed;
+            bottom: 0;
+            left: 300px;
+            right: 0;
+            background-color: #fff;
+            padding: 10px;
+            box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+            display: flex;
+        }
+        #user-input {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            margin-right: 10px;
+        }
+        #send-button, #summarize-button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background-color: #007bff;
+            color: #fff;
+            cursor: pointer;
+        }
+        #send-button:hover, #summarize-button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <h2>設定</h2>
+        <label for="api-url">API網址:</label>
+        <input type="text" id="api-url" placeholder="https://api.openai.com"><br><br>
+        <label for="api-key">API金鑰:</label>
+        <input type="text" id="api-key" placeholder="你的API金鑰"><br><br>
+        <label for="model-select">選擇模型:</label>
+        <select id="model-select" disabled>
+            <option value="">載入中...</option>
+        </select>
+    </div>
+    <div id="chat-container">
+        <div id="chat-history"></div>
+    </div>
+    <div id="input-container">
+        <input type="text" id="user-input" placeholder="輸入提示...">
+        <button id="send-button">送出</button>
+        <button id="summarize-button">摘要</button>
+    </div>
+
+    <script>
+        document.getElementById('send-button').addEventListener('click', sendMessage);
+        document.getElementById('summarize-button').addEventListener('click', summarizePage);
+        document.getElementById('api-url').addEventListener('input', checkInputs);
+        document.getElementById('api-key').addEventListener('input', checkInputs);
+        document.getElementById('api-url').addEventListener('paste', checkInputs);
+        document.getElementById('api-key').addEventListener('paste', checkInputs);
+
+        function sendMessage() {
+            const userInput = document.getElementById('user-input').value;
+            if (userInput.trim() === '') return;
+
+            appendMessage(userInput, 'user');
+            document.getElementById('user-input').value = '';
+
+            fetchResponse(userInput).then(response => {
+                appendMessage(response, 'ai');
+            });
+        }
+
+        function summarizePage() {
+            const pageContent = document.body.innerText;
+            if (pageContent.trim() === '') return;
+
+            fetchSummary(pageContent).then(summary => {
+                appendMessage(summary, 'summary');
+            });
+        }
+
+        function appendMessage(message, type) {
+            const chatHistory = document.getElementById('chat-history');
+            const messageElement = document.createElement('div');
+            messageElement.className = `message ${type}-message`;
+            messageElement.textContent = message;
+            chatHistory.appendChild(messageElement);
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+
+        async function fetchResponse(prompt) {
+            const apiUrl = document.getElementById('api-url').value + '/v1/chat/completions';
+            const apiKey = document.getElementById('api-key').value;
+            const model = document.getElementById('model-select').value;
+
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: model,
+                    messages: [{ role: "user", content: prompt }]
+                })
+            });
+
+            const data = await response.json();
+            return data.choices[0].message.content;
+        }
+
+        async function fetchSummary(content) {
+            const apiUrl = document.getElementById('api-url').value + '/v1/chat/completions';
+            const apiKey = document.getElementById('api-key').value;
+            const model = document.getElementById('model-select').value;
+
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: model,
+                    messages: [{ role: "user", content: `請對以下內容進行摘要：${content}` }]
+                })
+            });
+
+            const data = await response.json();
+            return data.choices[0].message.content;
+        }
+
+        function checkInputs() {
+            const apiUrl = document.getElementById('api-url').value.trim();
+            const apiKey = document.getElementById('api-key').value.trim();
+
+            if (apiUrl && apiKey) {
+                fetchModels(apiUrl, apiKey);
+            } else {
+                document.getElementById('model-select').innerHTML = '<option value="">請填入API網址和金鑰</option>';
+                document.getElementById('model-select').disabled = true;
+            }
+        }
+
+        async function fetchModels(apiUrl, apiKey) {
+            const modelsUrl = apiUrl + '/v1/models';
+            try {
+                const response = await fetch(modelsUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`
+                    }
+                });
+
+                const data = await response.json();
+                populateModelSelect(data.data);
+            } catch (error) {
+                document.getElementById('model-select').innerHTML = '<option value="">無法載入模型</option>';
+                console.error('Error fetching models:', error);
+            }
+        }
+
+        function populateModelSelect(models) {
+            const selectElement = document.getElementById('model-select');
+            selectElement.innerHTML = '';
+            models.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model.id;
+                option.textContent = model.id;
+                selectElement.appendChild(option);
+            });
+            selectElement.disabled = false;
+        }
+    </script>
+</body>
+</html>
+
+對話送出時 要將對話歷史紀錄都作為context
+
+
+html
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Summy</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+        }
+        #sidebar {
+            width: 300px;
+            background-color: #f4f4f4;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        #chat-container {
+            flex-grow: 1;
+            padding: 20px;
+            background-color: #fff;
+            overflow-y: auto;
+        }
+        .message {
+            margin-bottom: 10px;
+        }
+        .user-message {
+            text-align: right;
+        }
+        .ai-message {
+            text-align: left;
+        }
+        .summary-message {
+            text-align: left;
+            font-style: italic;
+        }
+        #input-container {
+            position: fixed;
+            bottom: 0;
+            left: 300px;
+            right: 0;
+            background-color: #fff;
+            padding: 10px;
+            box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+            display: flex;
+        }
+        #user-input {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            margin-right: 10px;
+        }
+        #send-button, #summarize-button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background-color: #007bff;
+            color: #fff;
+            cursor: pointer;
+        }
+        #send-button:hover, #summarize-button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div id="sidebar">
+        <h2>設定</h2>
+        <label for="api-url">API網址:</label>
+        <input type="text" id="api-url" placeholder="https://api.openai.com"><br><br>
+        <label for="api-key">API金鑰:</label>
+        <input type="text" id="api-key" placeholder="你的API金鑰"><br><br>
+        <label for="model-select">選擇模型:</label>
+        <select id="model-select" disabled>
+            <option value="">載入中...</option>
+        </select>
+    </div>
+    <div id="chat-container">
+        <div id="chat-history"></div>
+    </div>
+    <div id="input-container">
+        <input type="text" id="user-input" placeholder="輸入提示...">
+        <button id="send-button">送出</button>
+        <button id="summarize-button">摘要</button>
+    </div>
+
+    <script>
+        document.getElementById('send-button').addEventListener('click', sendMessage);
+        document.getElementById('summarize-button').addEventListener('click', summarizePage);
+        document.getElementById('api-url').addEventListener('input', checkInputs);
+        document.getElementById('api-key').addEventListener('input', checkInputs);
+        document.getElementById('api-url').addEventListener('paste', checkInputs);
+        document.getElementById('api-key').addEventListener('paste', checkInputs);
+
+        let chatHistory = [];
+
+        function sendMessage() {
+            const userInput = document.getElementById('user-input').value;
+            if (userInput.trim() === '') return;
+
+            appendMessage(userInput, 'user');
+            document.getElementById('user-input').value = '';
+
+            chatHistory.push({ role: "user", content: userInput });
+
+            fetchResponse().then(response => {
+                appendMessage(response, 'ai');
+                chatHistory.push({ role: "assistant", content: response });
+            });
+        }
+
+        function summarizePage() {
+            const pageContent = document.body.innerText;
+            if (pageContent.trim() === '') return;
+
+            fetchSummary(pageContent).then(summary => {
+                appendMessage(summary, 'summary');
+                chatHistory.push({ role: "assistant", content: summary });
+            });
+        }
+
+        function appendMessage(message, type) {
+            const chatHistoryDiv = document.getElementById('chat-history');
+            const messageElement = document.createElement('div');
+            messageElement.className = `message ${type}-message`;
+            messageElement.textContent = message;
+            chatHistoryDiv.appendChild(messageElement);
+            chatHistoryDiv.scrollTop = chatHistoryDiv.scrollHeight;
+        }
+
+        async function fetchResponse() {
+            const apiUrl = document.getElementById('api-url').value + '/v1/chat/completions';
+            const apiKey = document.getElementById('api-key').value;
+            const model = document.getElementById('model-select').value;
+
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: model,
+                    messages: chatHistory
+                })
+            });
+
+            const data = await response.json();
+            return data.choices[0].message.content;
+        }
+
+        async function fetchSummary(content) {
+            const apiUrl = document.getElementById('api-url').value + '/v1/chat/completions';
+            const apiKey = document.getElementById('api-key').value;
+            const model = document.getElementById('model-select').value;
+
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: model,
+                    messages: [...chatHistory, { role: "user", content: `請對以下內容進行摘要：${content}` }]
+                })
+            });
+
+            const data = await response.json();
+            return data.choices[0].message.content;
+        }
+
+        function checkInputs() {
+            const apiUrl = document.getElementById('api-url').value.trim();
+            const apiKey = document.getElementById('api-key').value.trim();
+
+            if (apiUrl && apiKey) {
+                fetchModels(apiUrl, apiKey);
+            } else {
+                document.getElementById('model-select').innerHTML = '<option value="">請填入API網址和金鑰</option>';
+                document.getElementById('model-select').disabled = true;
+            }
+        }
+
+        async function fetchModels(apiUrl, apiKey) {
+            const modelsUrl = apiUrl + '/v1/models';
+            try {
+                const response = await fetch(modelsUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`
+                    }
+                });
+
+                const data = await response.json();
+                populateModelSelect(data.data);
+            } catch (error) {
+                document.getElementById('model-select').innerHTML = '<option value="">無法載入模型</option>';
+                console.error('Error fetching models:', error);
+            }
+        }
+
+        function populateModelSelect(models) {
+            const selectElement = document.getElementById('model-select');
+            selectElement.innerHTML = '';
+            models.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model.id;
+                option.textContent = model.id;
+                selectElement.appendChild(option);
+            });
+            selectElement.disabled = false;
+        }
+    </script>
+</body>
+</html>
